@@ -12,9 +12,35 @@ import functools
 from argparse import ArgumentParser, ArgumentTypeError
 from time import sleep
 
-from mpublisher import AvahiPublisher
+import dbus
+
+from mpublisher import _avahi as avahi, AvahiPublisher
 
 log = logging.getLogger("docker-to-cname");
+
+class ModAvahiPublisher(AvahiPublisher):
+    def publish_a(self, name):
+
+        entry_group_proxy = self.bus.get_object(avahi.DBUS_NAME, self.server.EntryGroupNew())
+        group = dbus.Interface(entry_group_proxy, avahi.DBUS_INTERFACE_ENTRY_GROUP)
+
+        for proto in (avahi.PROTO_INET, avahi.PROTO_INET6):
+            _, _, _, aproto, addr, _ = self.server.ResolveHostName(
+                avahi.IF_UNSPEC,
+                avahi.PROTO_UNSPEC,
+                self.hostname,
+                proto,
+                dbus.UInt32(0)
+            )
+            print(f"{proto} -> {aproto}, {addr}")
+
+            print(f"Adding {name} -> {addr}")
+            group.AddAddress(avahi.IF_UNSPEC, aproto, dbus.UInt32(avahi.PUBLISH_NO_REVERSE), name.encode("ascii"), addr)
+
+        group.Commit()
+        self.published[name] = group
+
+        return True
 
 def positive_int_arg(value):
     """Helper type (for argparse) to validate and return positive integer argument."""
@@ -71,14 +97,14 @@ def main():
 
     while True:
         if not publisher or not publisher.available():
-            publisher = AvahiPublisher(30)
+            publisher = ModAvahiPublisher(30)
 
             signal.signal(signal.SIGTERM, functools.partial(handle_signals, publisher))
             signal.signal(signal.SIGINT, functools.partial(handle_signals, publisher))
             signal.signal(signal.SIGQUIT, functools.partial(handle_signals, publisher))
 
             for cname in cnames:
-                status = publisher.publish_cname(cname, True)
+                status = publisher.publish_a(cname)
                 if not status:
                     log.error("failed to publish '%s'", cname)
                     continue
