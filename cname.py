@@ -89,7 +89,8 @@ def main():
     f.close()
 
     cnames = [line.rstrip('\n') for line in open("cnames")]
-    
+    cnames = [cname for cname in cnames if cname.endswith('.local')]
+
     handler = logging.StreamHandler(sys.stderr)
     format_string = "%(levelname)s: %(message)s"
 
