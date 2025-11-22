@@ -21,24 +21,28 @@ log = logging.getLogger("docker-to-cname");
 class ModAvahiPublisher(AvahiPublisher):
     def publish_a(self, name):
 
-        entry_group_proxy = self.bus.get_object(avahi.DBUS_NAME, self.server.EntryGroupNew())
-        group = dbus.Interface(entry_group_proxy, avahi.DBUS_INTERFACE_ENTRY_GROUP)
+        try:
+            entry_group_proxy = self.bus.get_object(avahi.DBUS_NAME, self.server.EntryGroupNew())
+            group = dbus.Interface(entry_group_proxy, avahi.DBUS_INTERFACE_ENTRY_GROUP)
 
-        for proto in (avahi.PROTO_INET, avahi.PROTO_INET6):
-            _, _, _, aproto, addr, _ = self.server.ResolveHostName(
-                avahi.IF_UNSPEC,
-                avahi.PROTO_UNSPEC,
-                self.hostname,
-                proto,
-                dbus.UInt32(0)
-            )
-            print(f"{proto} -> {aproto}, {addr}")
+            for proto in (avahi.PROTO_INET, avahi.PROTO_INET6):
+                _, _, _, aproto, addr, _ = self.server.ResolveHostName(
+                    avahi.IF_UNSPEC,
+                    avahi.PROTO_UNSPEC,
+                    self.hostname,
+                    proto,
+                    dbus.UInt32(0)
+                )
+                print(f"{proto} -> {aproto}, {addr}")
 
-            print(f"Adding {name} -> {addr}")
-            group.AddAddress(avahi.IF_UNSPEC, aproto, dbus.UInt32(avahi.PUBLISH_NO_REVERSE), name.encode("ascii"), addr)
+                print(f"Adding {name} -> {addr}")
+                group.AddAddress(avahi.IF_UNSPEC, aproto, dbus.UInt32(avahi.PUBLISH_NO_REVERSE), name.encode("ascii"), addr)
 
-        group.Commit()
-        self.published[name] = group
+            group.Commit()
+            self.published[name] = group
+        except Exception as e:
+            print(e)
+            return False
 
         return True
 
@@ -111,7 +115,7 @@ def main():
             if publisher.count() == len(cnames):
                 log.info("All CNAMEs published")
             else:
-                log.warning("%d of %d published", publisher.count, len(cnames))
+                log.warning("%d of %d published", publisher.count(), len(cnames))
 
         sleep(1)
 
